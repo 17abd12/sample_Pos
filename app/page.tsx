@@ -319,7 +319,7 @@ export default function OrdersPage() {
 
       if (!res.ok) {
         toast.error(
-          `❌ Failed: ${data?.message || data?.error || "Unknown error"}`
+          `❌ Failed: ${data?.message || "Unknown error"}${data?.error ? ` — ${data.error}` : ""}`
         );
         return;
       }

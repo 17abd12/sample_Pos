@@ -45,7 +45,9 @@ create table if not exists orders (
     added_at timestamp default now(),
     paymentMethod text,
     discount text,
-    discount_description text
+    discount_description text,
+    seq_no text,
+    table_no int
 );
 
 -- Order Items table

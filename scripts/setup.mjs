@@ -65,10 +65,10 @@ async function createTablesAndUser() {
     await client.query(sql);
     console.log("✅  Tables created (or already exist).");
 
-    // Add role column if it was missing from an older schema
-    await client.query(`
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'cashier'
-    `);
+    // Migrate existing tables that may be missing columns
+    await client.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS seq_no text`);
+    await client.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS table_no int`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'cashier'`);
 
     console.log("\n👤  Creating default admin user (abd)...");
 
