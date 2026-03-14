@@ -12,7 +12,7 @@ type IncomingItem = { id: string; quantity: number }
 
 export async function POST(req: Request) {
   try {
-    const { items, orderName, paymentMethod, discount, discountDescription, tableNo } =
+    const { items, orderName, paymentMethod, discount, discountDescription, tableNo, customerEmail } =
       (await req.json()) as {
         items: IncomingItem[];
         orderName?: string;
@@ -20,6 +20,7 @@ export async function POST(req: Request) {
         discount?: number;
         discountDescription?: string;
         tableNo?: number;
+        customerEmail?: string;
       };
 
     // Validate request
@@ -174,8 +175,78 @@ export async function POST(req: Request) {
         );
     }
 
+    // Call Raseed webhook if customer email is provided
+    if (customerEmail && customerEmail.trim()) {
+      try {
+        const retailerId = process.env.RASEED_RETAILER_ID
+        const branchId = process.env.RASEED_BRANCH_ID
+        if (retailerId && branchId && retailerId !== "your_retailer_id_here" && branchId !== "your_branch_id_here") {
+          const billNumber = `ORDER-${order.id}`
+          const subtotal = invRows.reduce((sum: number, row: any) => sum + row.sale_price * qtyMap.get(row.id)!, 0)
+          const totalAmount = Math.max(0, subtotal - (discount || 0))
+
+          const webhookPayload = {
+            retailer_id: retailerId,
+            branch_id: branchId,
+            bill_number: billNumber,
+            customer_email: customerEmail.trim(),
+            total_amount: totalAmount,
+            payment_method: paymentMethod === "Cash" ? "CASH" : "ONLINE",
+            items: invRows.map((row: any) => ({
+              name: row.name,
+              quantity: qtyMap.get(row.id)!,
+              price: row.sale_price,
+            })),
+          }
+
+          const baseUrl = process.env.RASEED_BASE_URL ?? "https://raseed-pos.vercel.app"
+          console.log("[orders/webhook] sending receipt webhook", {
+            orderId: order.id,
+            customerEmail: customerEmail.trim(),
+            retailerId,
+            branchId,
+            endpoint: `${baseUrl}/api/pos/receipts`,
+            totalAmount,
+          })
+          const webhookRes = await fetch(`${baseUrl}/api/pos/receipts`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(webhookPayload),
+          })
+          const webhookText = await webhookRes.text()
+          console.log("[orders/webhook] webhook response", {
+            orderId: order.id,
+            status: webhookRes.status,
+            statusText: webhookRes.statusText,
+            body: webhookText,
+          })
+          if (!webhookRes.ok) {
+            console.error("[orders/webhook] webhook non-OK", {
+              orderId: order.id,
+              status: webhookRes.status,
+              statusText: webhookRes.statusText,
+              body: webhookText,
+            })
+          }
+        } else {
+          console.error("[orders/webhook] skipped due to missing config", {
+            hasRetailerId: Boolean(retailerId),
+            hasBranchId: Boolean(branchId),
+            retailerId,
+            branchId,
+          })
+        }
+      } catch (webhookErr: any) {
+        console.error("[orders/webhook] webhook error", {
+          orderId: order.id,
+          message: webhookErr?.message,
+          stack: webhookErr?.stack,
+        })
+      }
+    }
+
     return NextResponse.json(
-      { message: "Order placed", orderId: order.id, seq_no: nextSeq, paymentMethod: order.paymentMethod,userId:userId },
+      { message: "Order placed", orderId: order.id, seq_no: nextSeq, paymentMethod: order.paymentMethod, userId: userId },
       { status: 201 }
     );
   } catch (e: any) {

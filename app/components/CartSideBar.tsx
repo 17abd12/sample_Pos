@@ -4,6 +4,13 @@ import { useState } from "react"
 import { CartItem } from "@/app/types/inventory"
 import CartItemRow from "./CartItemRow"
 
+type RaseedDiscount = {
+  id: string
+  discountPercentage: number
+  expiresAt: string
+  status: string
+}
+
 type CartSidebarProps = {
   cart: CartItem[]
   onRemove: (id: string) => void
@@ -16,15 +23,64 @@ type CartSidebarProps = {
   setDiscountDescription?: (desc: string) => void
   setTableNo?: (amount: number) => void
   discoundDescription?: string
-  placing: boolean,
+  placing: boolean
   tableNo: number
+  customerEmail: string
+  setCustomerEmail: (email: string) => void
 }
 
 export default function CartSidebar({ cart, onRemove, onPlaceOrder, onClearCart, placing, onIncreament, onDecreament, setDiscount, discount, setDiscountDescription, tableNo,
-  discoundDescription, setTableNo }: CartSidebarProps) {
+  discoundDescription, setTableNo, customerEmail, setCustomerEmail }: CartSidebarProps) {
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Online">("Cash")
+  const [checkingDiscount, setCheckingDiscount] = useState(false)
+  const [raseedDiscounts, setRaseedDiscounts] = useState<RaseedDiscount[]>([])
+  const [discountChecked, setDiscountChecked] = useState(false)
+  const [applyingDiscountId, setApplyingDiscountId] = useState<string | null>(null)
+
   const subtotal = cart.reduce((sum, item) => sum + item.sale_price * item.quantity, 0)
   const total = Math.max(0, subtotal - discount)
+
+  const handleCheckDiscount = async () => {
+    if (!customerEmail.trim()) return
+    setCheckingDiscount(true)
+    setRaseedDiscounts([])
+    setDiscountChecked(false)
+    try {
+      const res = await fetch(`/api/discounts/check?customer_email=${encodeURIComponent(customerEmail.trim())}`)
+      const data = await res.json()
+      setRaseedDiscounts(data.discounts || [])
+      setDiscountChecked(true)
+    } catch (e) {
+      console.error("Failed to check discounts:", e)
+      setDiscountChecked(true)
+    } finally {
+      setCheckingDiscount(false)
+    }
+  }
+
+  const handleApplyDiscount = async (discountItem: RaseedDiscount) => {
+    if (!customerEmail.trim()) return
+    setApplyingDiscountId(discountItem.id)
+    try {
+      const res = await fetch("/api/discounts/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ discount_id: discountItem.id, customer_email: customerEmail.trim() }),
+      })
+      const data = await res.json()
+      if (data.applied) {
+        const discountAmount = Math.floor(subtotal * data.discount_percentage / 100)
+        setDiscount(discountAmount)
+        if (setDiscountDescription) setDiscountDescription(`Raseed ${data.discount_percentage}% Discount`)
+        setRaseedDiscounts([])
+        setDiscountChecked(false)
+      }
+    } catch (e) {
+      console.error("Failed to apply discount:", e)
+    } finally {
+      setApplyingDiscountId(null)
+    }
+  }
 
   return (
     <div className="w-full h-full bg-white border-l shadow-lg p-4 flex flex-col">
@@ -48,16 +104,60 @@ export default function CartSidebar({ cart, onRemove, onPlaceOrder, onClearCart,
               <p className="font-bold text-lg">Rs. {total}</p>
             </div>
 
+            {/* Customer Email */}
+            <div className="mb-2">
+              <label className="block text-sm font-semibold mb-1">Customer Email (optional):</label>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  className="flex-1 border rounded px-3 py-2 text-sm"
+                  placeholder="customer@example.com"
+                  value={customerEmail}
+                  onChange={e => {
+                    setCustomerEmail(e.target.value)
+                    setRaseedDiscounts([])
+                    setDiscountChecked(false)
+                  }}
+                />
+                {customerEmail.trim() && (
+                  <button
+                    onClick={handleCheckDiscount}
+                    disabled={checkingDiscount}
+                    className="px-2 py-1 text-xs bg-blue-600 text-white rounded disabled:opacity-60"
+                  >
+                    {checkingDiscount ? "..." : "Check"}
+                  </button>
+                )}
+              </div>
+              {discountChecked && raseedDiscounts.length === 0 && (
+                <p className="text-xs text-gray-500 mt-1">No discounts available.</p>
+              )}
+              {raseedDiscounts.length > 0 && (
+                <div className="mt-1 border rounded p-2 bg-green-50">
+                  <p className="text-xs font-semibold text-green-700 mb-1">Available Discounts:</p>
+                  {raseedDiscounts.map(d => (
+                    <div key={d.id} className="flex items-center justify-between mb-1">
+                      <span className="text-xs">{d.discountPercentage}% off</span>
+                      <button
+                        onClick={() => handleApplyDiscount(d)}
+                        disabled={applyingDiscountId === d.id}
+                        className="text-xs px-2 py-0.5 bg-green-600 text-white rounded disabled:opacity-60"
+                      >
+                        {applyingDiscountId === d.id ? "Applying..." : "Apply"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="flex flex-row justify-between gap-2">
-              {/* add discount field here where user can enter discount amount and it can only applied if single item is selected otherwise disable*/}
-              {/* if already discount is applied and new item is added to cart then discount should be removed */}
               <div className="mb-2 w-2/5">
                 <label className="block text-sm font-semibold mb-1">Discount (Rs.):</label>
                 <input
                   type="number"
                   className="w-full border rounded px-3 py-2 text-sm"
                   placeholder="Discount"
-                  // disabled={cart.length !== 1 }
                   value={discount == 0 ? '' : discount}
                   onChange={e => setDiscount(Number(e.target.value))}
                 />
@@ -69,7 +169,6 @@ export default function CartSidebar({ cart, onRemove, onPlaceOrder, onClearCart,
                   type="text"
                   className="w-full border rounded px-3 py-2 text-sm"
                   placeholder="Enter description"
-                  // disabled={cart.length !== 1 }
                   value={discoundDescription}
                   onChange={e => setDiscountDescription ? setDiscountDescription(e.target.value) : null}
                 />
@@ -83,7 +182,6 @@ export default function CartSidebar({ cart, onRemove, onPlaceOrder, onClearCart,
                   type="number"
                   className="w-full border rounded px-3 py-2 text-sm"
                   placeholder="Table No"
-                  // disabled={cart.length !== 1 }
                   required
                   value={tableNo == 0 ? '' : tableNo}
                   onChange={e => setTableNo ? setTableNo(Number(e.target.value)) : null}

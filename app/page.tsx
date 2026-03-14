@@ -19,6 +19,7 @@ export default function OrdersPage() {
   const [tableNo, setTableNo] = useState<number>(0);
   const [discoundDescription, setDiscountDescription] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [customerEmail, setCustomerEmail] = useState<string>("");
 
   // Load cart
   useEffect(() => {
@@ -114,6 +115,7 @@ export default function OrdersPage() {
     setSelectedItems([]);
     setDiscount(0);
     setDiscountDescription("");
+    setCustomerEmail("");
   };
 
   const totalItems = cart.reduce((sum, ci) => sum + ci.quantity, 0);
@@ -307,7 +309,8 @@ export default function OrdersPage() {
         paymentMethod,
         discount: discount || 0,
         discountDescription: discoundDescription || "",
-        tableNo: tableNo || 0
+        tableNo: tableNo || 0,
+        customerEmail: customerEmail.trim() || "",
       };
 
       const res = await fetch("/api/orders", {
@@ -419,10 +422,11 @@ export default function OrdersPage() {
           setDiscount={setDiscount}
           discount={discount}
           setDiscountDescription={setDiscountDescription}
-
           tableNo={tableNo}
           setTableNo={setTableNo}
           discoundDescription={discoundDescription}
+          customerEmail={customerEmail}
+          setCustomerEmail={setCustomerEmail}
         />
       </div>
 
@@ -437,6 +441,8 @@ export default function OrdersPage() {
         onDecrement={decrementItem}
         onClearCart={clearCart}
         placing={placing}
+        customerEmail={customerEmail}
+        setCustomerEmail={setCustomerEmail}
       />
     </div>
   );

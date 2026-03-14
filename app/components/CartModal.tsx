@@ -15,9 +15,11 @@ type CartModalProps = {
   onPlaceOrder: (paymentMethod: string) => void
   onClearCart: () => void
   placing: boolean
+  customerEmail: string
+  setCustomerEmail: (email: string) => void
 }
 
-export default function CartModal({ cart, isOpen, onClose, onRemove, onPlaceOrder, onClearCart, placing, onIncrement, onDecrement }: CartModalProps) {
+export default function CartModal({ cart, isOpen, onClose, onRemove, onPlaceOrder, onClearCart, placing, onIncrement, onDecrement, customerEmail, setCustomerEmail }: CartModalProps) {
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Online">("Cash")
   if (!isOpen) return null
   const total = cart.reduce((sum, item) => sum + item.sale_price * item.quantity, 0)
@@ -47,6 +49,18 @@ export default function CartModal({ cart, isOpen, onClose, onRemove, onPlaceOrde
             <div className="mt-4 flex justify-between items-center border-t pt-4">
               <p className="font-bold text-lg">Total:</p>
               <p className="font-bold text-lg">Rs. {total}</p>
+            </div>
+
+            {/* Customer Email */}
+            <div className="mt-4">
+              <label className="block text-sm font-semibold mb-1">Customer Email (optional):</label>
+              <input
+                type="email"
+                className="w-full border rounded px-3 py-2 text-sm"
+                placeholder="customer@example.com"
+                value={customerEmail}
+                onChange={e => setCustomerEmail(e.target.value)}
+              />
             </div>
 
             {/* Payment Method */}
